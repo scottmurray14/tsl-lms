@@ -1,113 +1,544 @@
-import Image from "next/image";
+"use client";
+import { useState } from "react";
+import axios from "axios";
+import { BarChart, Card, Title } from "@tremor/react";
+import {
+  Card as ShadcnCard,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Chart } from "@/components/chart";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React from "react";
+import Search from "@/components/search";
+import DuplicateEmailFinder from "@/components/duplicates";
+import UndeliveredSignsFinder from "@/components/DeliveryIssuesTable";
 
 export default function Home() {
+  const [chartTotal, setChartTotal] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [totalHits, setTotalHits] = useState<number | null>(null);
+  const [totalEsigns, setTotalEsigns] = useState<number | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    if (!startDate || !endDate) {
+      setError("Please select both start and end dates");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const startTimestamp = startDate.getTime() + 3600000;
+    const endTimestamp = endDate.getTime() + 3600000;
+
+    try {
+      const [
+        hitsResponse,
+        esignsResponse,
+        esignAggregation,
+        partialAggregation,
+        deliveryAggregation,
+        duplicateAggregation,
+      ] = await Promise.all([
+        axios.post("/api/opensearch", {
+          from: 0,
+          size: itemsPerPage,
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    esign_timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    esign_timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+          aggs: {
+            sales_over_time: {
+              date_histogram: {
+                field: "esign_timestamp",
+                calendar_interval: "hour",
+                format: "d/ha",
+              },
+            },
+          },
+          size: 0,
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+          aggs: {
+            sales_over_time: {
+              date_histogram: {
+                field: "timestamp",
+                calendar_interval: "hour",
+                format: "d/ha",
+              },
+            },
+          },
+          size: 0,
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    delivered_timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+                {
+                  exists: {
+                    field: "external_lead_id",
+                  },
+                },
+              ],
+            },
+          },
+          aggs: {
+            sales_over_time: {
+              date_histogram: {
+                field: "delivered_timestamp",
+                calendar_interval: "hour",
+                format: "d/ha",
+              },
+            },
+          },
+          size: 0,
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    esign_timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+                {
+                  match_phrase: {
+                    delivery_error: "DUPLICATE",
+                  },
+                },
+              ],
+            },
+          },
+          aggs: {
+            sales_over_time: {
+              date_histogram: {
+                field: "esign_timestamp",
+                calendar_interval: "hour",
+                format: "d/ha",
+                time_zone: "GMT",
+              },
+            },
+          },
+          size: 0,
+        }),
+      ]);
+
+      const partials_data = processAggregationPartial(
+        partialAggregation.data.aggregations
+      );
+      const esigns_data = processAggregationEsign(
+        esignAggregation.data.aggregations
+      );
+      const delivery_data = processAggregationDelivery(
+        deliveryAggregation.data.aggregations
+      );
+      const duplicate_data = processAggregationDuplicate(
+        duplicateAggregation.data.aggregations
+      );
+
+      // Combine data based on date
+      const combinedData = partials_data.map((mobileItem) => {
+        const desktopItem = esigns_data.find(
+          (desktopItem) => desktopItem.date === mobileItem.date
+        );
+        const deliveryItem = delivery_data.find(
+          (deliveryItem) => deliveryItem.date === mobileItem.date
+        );
+        const duplicateItem = duplicate_data.find(
+          (duplicateItem) => duplicateItem.date === mobileItem.date
+        );
+
+        return {
+          date: mobileItem.date,
+          mobile: mobileItem.mobile,
+          desktop: desktopItem ? desktopItem.desktop : 0,
+          delivery: deliveryItem ? deliveryItem.delivery : 0,
+          duplicate: duplicateItem ? duplicateItem.duplicate : 0,
+        };
+      });
+
+      setChartData(combinedData);
+      setTotalHits(hitsResponse.data.hits.total.value);
+      setTotalEsigns(esignsResponse.data.hits.total.value);
+      setTotalHits(hitsResponse.data.hits.total.value);
+      setTotalEsigns(esignsResponse.data.hits.total.value);
+
+      // Process data for the table
+      const processedTableData = hitsResponse.data.hits.hits.map(
+        (hit: any) => ({
+          timestamp: new Date(hit._source.timestamp).toLocaleString(),
+          email: hit._source.email_address,
+        })
+      );
+
+      setTableData(processedTableData);
+      setCurrentPage(1); // Reset to first page when new data is fetched
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [tableData, setTableData] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const totalPages = Math.max(1, Math.ceil(totalHits / itemsPerPage));
+  const currentPageData = tableData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchData();
+  };
+
+  const processAggregationPartial = (aggregations) => {
+    const formattedData = aggregations.sales_over_time.buckets.map(
+      (bucket) => ({
+        date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
+        mobile: bucket.doc_count, // This will be the count of documents for that month
+      })
+    );
+
+    return formattedData;
+  };
+
+  const processAggregationEsign = (aggregations) => {
+    const formattedData = aggregations.sales_over_time.buckets.map(
+      (bucket) => ({
+        date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
+        desktop: bucket.doc_count, // This will be the count of documents for that month
+      })
+    );
+
+    return formattedData;
+  };
+
+  const processAggregationDelivery = (aggregations) => {
+    const formattedData = aggregations.sales_over_time.buckets.map(
+      (bucket) => ({
+        date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
+        delivery: bucket.doc_count, // This will be the count of documents for that month
+      })
+    );
+
+    return formattedData;
+  };
+
+  const processAggregationDuplicate = (aggregations) => {
+    const formattedData = aggregations.sales_over_time.buckets.map(
+      (bucket) => ({
+        date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
+        duplicate: bucket.doc_count, // This will be the count of documents for that month
+      })
+    );
+
+    return formattedData;
+  };
+
+  const handlePresetSelect = (preset: string) => {
+    const now = new Date();
+    let start: Date, end: Date;
+
+    switch (preset) {
+      case "today":
+        start = new Date(now.setHours(0, 0, 0, 0));
+        end = new Date(now.setHours(23, 59, 59, 999));
+        break;
+      case "yesterday":
+        start = new Date(now);
+        start.setDate(start.getDate() - 1);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(now);
+        end.setDate(end.getDate() - 1);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case "thisWeek":
+        start = new Date(now.setDate(now.getDate() - now.getDay()));
+        end = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+        end.setHours(23, 59, 59, 999);
+        break;
+      case "lastHour":
+        start = new Date(now.setHours(now.getHours() - 2));
+        end = new Date();
+        break;
+      default:
+        return;
+    }
+    console.log(start, end);
+
+    setStartDate(start);
+    setEndDate(end);
+    setSelectedPreset(preset);
+  };
+
+  const total = {
+    desktop: chartData.reduce((acc, curr) => acc + curr.desktop, 0),
+    mobile: chartData.reduce((acc, curr) => acc + curr.mobile, 0),
+    delivery: chartData.reduce((acc, curr) => acc + curr.delivery, 0),
+    duplicate: chartData.reduce((acc, curr) => acc + curr.duplicate, 0),
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <main className="p-4">
+      <Tabs defaultValue="account">
+        <TabsList>
+          <TabsTrigger value="account">Overview</TabsTrigger>
+          <TabsTrigger value="password">Search</TabsTrigger>
+        </TabsList>
+        <TabsContent value="account">
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+            <div className="flex space-x-4">
+              <div className="flex space-x-4 mb-4">
+                <Button
+                  onClick={() => handlePresetSelect("today")}
+                  variant={selectedPreset === "today" ? "default" : "outline"}
+                >
+                  Today
+                </Button>
+                <Button
+                  onClick={() => handlePresetSelect("yesterday")}
+                  variant={
+                    selectedPreset === "yesterday" ? "default" : "outline"
+                  }
+                >
+                  Yesterday
+                </Button>
+                <Button
+                  onClick={() => handlePresetSelect("thisWeek")}
+                  variant={
+                    selectedPreset === "thisWeek" ? "default" : "outline"
+                  }
+                >
+                  This Week
+                </Button>
+                <Button
+                  onClick={() => handlePresetSelect("lastHour")}
+                  variant={
+                    selectedPreset === "lastHour" ? "default" : "outline"
+                  }
+                >
+                  Last Hour
+                </Button>
+              </div>
+              <DatePicker
+                todayButton="Today"
+                selected={startDate}
+                onChange={(date: Date) => setStartDate(date)}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                timeCaption="time"
+                dateFormat="MMMM d, yyyy h:mm aa"
+                placeholderText="Select start date and time"
+                className="p-2 border rounded"
+              />
+              <DatePicker
+                selected={endDate}
+                onChange={(date: Date) => setEndDate(date)}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                timeCaption="time"
+                dateFormat="MMMM d, yyyy h:mm aa"
+                placeholderText="Select end date and time"
+                className="p-2 border rounded"
+              />
+              <Button type="submit" loading={isLoading}>
+                Submit
+              </Button>
+            </div>
+          </form>
+          {error && <div className="mt-4 text-red-500">{error}</div>}
+          {chartData.length !== 0 && (
+            <Chart chartData={chartData} total={total} />
+          )}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96">
+            {/* {totalHits !== null && (
+              <ShadcnCard>
+                <CardHeader>
+                  <CardTitle>Partials</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">{totalHits}</p>
+                </CardContent>
+              </ShadcnCard>
+            )}
+            {totalEsigns !== null && (
+              <ShadcnCard>
+                <CardHeader>
+                  <CardTitle>Esigns</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">{totalEsigns}</p>
+                </CardContent>
+              </ShadcnCard>
+            )} */}
+            {/* <Chart/> */}
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+            {startDate && endDate && (
+              <UndeliveredSignsFinder
+                startDate={startDate}
+                endDate={endDate}
+                className="col-span-1"
+              />
+            )}
+            {startDate && endDate && (
+              <DuplicateEmailFinder startDate={startDate} endDate={endDate} />
+            )}
+            {tableData.length > 0 ? (
+              <ShadcnCard className="col-span-2">
+                <CardHeader>
+                  <CardTitle>Leads</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead>Email</TableHead>
+                        {/* Add more TableHead components for additional columns */}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentPageData.map((row, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{row.timestamp}</TableCell>
+                          <TableCell>{row.email}</TableCell>
+                          {/* Add more TableCell components for additional columns */}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="flex justify-between items-center mt-4">
+                    <Button
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.max(prev - 1, 1))
+                      }
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span>
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                      }
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </CardContent>
+              </ShadcnCard>
+            ) : (
+              <Card className="mt-4">
+                <CardContent>No data available</CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="password">
+          <Search />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }
