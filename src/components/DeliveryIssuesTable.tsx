@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
+import { Search as SearchIcon } from "lucide-react";
 
 interface UndeliveredSignsFinderProps {
   startDate: Date | null;
@@ -21,6 +22,8 @@ interface UndeliveredSign {
   product: string;
   email: string;
   esignTimestamp: string;
+  duplicate: string;
+  tgg_duplicate: string;
 }
 
 export default function UndeliveredSignsFinder({ startDate, endDate }: UndeliveredSignsFinderProps) {
@@ -54,11 +57,35 @@ export default function UndeliveredSignsFinder({ startDate, endDate }: Undeliver
               },
               {
                 bool: {
-                  must_not: {
-                    exists: {
-                      field: "delivered_timestamp",
+                  must: [
+                    {
+                      bool: {
+                        must_not: {
+                          exists: {
+                            field: "delivered_timestamp",
+                          },
+                        },
+                      },
                     },
-                  },
+                    {
+                      bool: {
+                        must_not: {
+                          exists: {
+                            field: "duplicate",
+                          },
+                        },
+                      },
+                    },
+                    {
+                      bool: {
+                        must_not: {
+                          exists: {
+                            field: "tgg_duplicate",
+                          },
+                        },
+                      },
+                    },
+                  ],
                 },
               },
             ],
@@ -91,11 +118,11 @@ export default function UndeliveredSignsFinder({ startDate, endDate }: Undeliver
   }, [startDate, endDate]);
 
   return (
-    <Card className="w-full max-w-4xl mx-auto h-fit">
+    <Card className="w-full h-[600px] flex flex-col">
       <CardHeader>
         <CardTitle>Undelivered Leads ({totalCount})</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow overflow-auto">
         {isLoading && <p className="text-center">Loading...</p>}
 
         {error && <p className="text-red-500 mb-4">{error}</p>}
@@ -104,19 +131,26 @@ export default function UndeliveredSignsFinder({ startDate, endDate }: Undeliver
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>E-Sign Timestamp</TableHead>
+                <TableHead className="sticky top-0 bg-white">Timestamp</TableHead>
+                <TableHead className="sticky top-0 bg-white">Product</TableHead>
+                <TableHead className="sticky top-0 bg-white">Email</TableHead>
+                <TableHead className="sticky top-0 bg-white">E-Sign Timestamp</TableHead>
+                <TableHead className="sticky top-0 bg-white">Duplicate</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {undeliveredSigns.map((sign, index) => (
                 <TableRow key={index}>
-                    <TableCell><Link target="_blank" href={`https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=eu-west-1#edit-item?itemMode=2&pk=${sign.product}&route=ROUTE_ITEM_EXPLORER&sk=${sign.timestamp}&table=leads-prod`}>{sign.timestamp}</Link></TableCell>
-                    <TableCell>{sign.product}</TableCell>
-                  <TableCell>{sign.email}</TableCell>
+                  <TableCell><Link target="_blank" href={`https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=eu-west-1#edit-item?itemMode=2&pk=${sign.product}&route=ROUTE_ITEM_EXPLORER&sk=${sign.timestamp}&table=leads-prod`}>{sign.timestamp}</Link></TableCell>
+                  <TableCell>{sign.product}</TableCell>
+                  <TableCell>
+                    {sign.email}
+                    <Link href={`/?tab=search&email=${sign.email}`} passHref>
+                      <SearchIcon className="inline-block ml-1 w-4 h-4 cursor-pointer" />
+                    </Link>
+                  </TableCell>
                   <TableCell>{sign.esignTimestamp}</TableCell>
+                  <TableCell>{sign.tgg_duplicate}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

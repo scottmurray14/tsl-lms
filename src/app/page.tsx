@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from 'next/navigation';
 import axios from "axios";
 import { BarChart, Card, Title } from "@tremor/react";
 import {
@@ -25,8 +26,9 @@ import React from "react";
 import Search from "@/components/search";
 import DuplicateEmailFinder from "@/components/duplicates";
 import UndeliveredSignsFinder from "@/components/DeliveryIssuesTable";
+import AcceptedLeadsTable from "@/components/AcceptedLeadsTable";
 
-export default function Home() {
+function HomeContent() {
   const [chartTotal, setChartTotal] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [totalHits, setTotalHits] = useState<number | null>(null);
@@ -35,6 +37,15 @@ export default function Home() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("account");
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const fetchData = async () => {
     if (!startDate || !endDate) {
@@ -56,6 +67,7 @@ export default function Home() {
         partialAggregation,
         deliveryAggregation,
         duplicateAggregation,
+        acceptedAggregation,
       ] = await Promise.all([
         axios.post("/api/opensearch", {
           from: 0,
@@ -193,8 +205,52 @@ export default function Home() {
                   },
                 },
                 {
-                  match_phrase: {
-                    delivery_error: "DUPLICATE",
+                  bool: {
+                    should: [
+                      {
+                        exists: {
+                          field: "duplicate",
+                        },
+                      },
+                      {
+                        exists: {
+                          field: "tgg_duplicate",
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          aggs: {
+            sales_over_time: {
+              date_histogram: {
+                field: "esign_timestamp",
+                calendar_interval: "hour",
+                format: "d/ha",
+                time_zone: "GMT",
+              },
+            },
+          },
+          size: 0,
+        }),
+        axios.post("/api/opensearch", {
+          track_total_hits: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  range: {
+                    esign_timestamp: {
+                      gte: startTimestamp,
+                      lt: endTimestamp,
+                    },
+                  },
+                },
+                {
+                  term: {
+                    is_accepted: true,
                   },
                 },
               ],
@@ -226,6 +282,9 @@ export default function Home() {
       const duplicate_data = processAggregationDuplicate(
         duplicateAggregation.data.aggregations
       );
+      const accepted_data = processAggregationAccepted(
+        acceptedAggregation.data.aggregations
+      );
 
       // Combine data based on date
       const combinedData = partials_data.map((mobileItem: { date: any; mobile: any; }) => {
@@ -238,6 +297,9 @@ export default function Home() {
         const duplicateItem = duplicate_data.find(
           (duplicateItem: { date: any; }) => duplicateItem.date === mobileItem.date
         );
+        const acceptedItem = accepted_data.find(
+          (acceptedItem: { date: any; }) => acceptedItem.date === mobileItem.date
+        );
 
         return {
           date: mobileItem.date,
@@ -245,6 +307,7 @@ export default function Home() {
           desktop: desktopItem ? desktopItem.desktop : 0,
           delivery: deliveryItem ? deliveryItem.delivery : 0,
           duplicate: duplicateItem ? duplicateItem.duplicate : 0,
+          accepted: acceptedItem ? acceptedItem.accepted : 0,
         };
       });
 
@@ -331,6 +394,17 @@ export default function Home() {
     return formattedData;
   };
 
+  const processAggregationAccepted = (aggregations: { sales_over_time: { buckets: any[]; }; }) => {
+    const formattedData = aggregations.sales_over_time.buckets.map(
+      (bucket: { key_as_string: any; doc_count: any; }) => ({
+        date: bucket.key_as_string,
+        accepted: bucket.doc_count,
+      })
+    );
+
+    return formattedData;
+  };
+
   const handlePresetSelect = (preset: string) => {
     const now = new Date();
     let start: Date, end: Date;
@@ -372,14 +446,16 @@ export default function Home() {
     mobile: chartData.reduce((acc, curr) => acc + curr.mobile, 0),
     delivery: chartData.reduce((acc, curr) => acc + curr.delivery, 0),
     duplicate: chartData.reduce((acc, curr) => acc + curr.duplicate, 0),
+    accepted: chartData.reduce((acc, curr) => acc + curr.accepted, 0),
   };
 
   return (
     <main className="p-4">
-      <Tabs defaultValue="account">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="account">Overview</TabsTrigger>
-          <TabsTrigger value="password">Search</TabsTrigger>
+          <TabsTrigger value="search">Search</TabsTrigger>
+          <TabsTrigger value="leads">Leads</TabsTrigger>
         </TabsList>
         <TabsContent value="account">
           <form onSubmit={handleSubmit} className="mt-4 space-y-4">
@@ -448,29 +524,7 @@ export default function Home() {
           {chartData.length !== 0 && (
             <Chart chartData={chartData} total={total} />
           )}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96">
-            {/* {totalHits !== null && (
-              <ShadcnCard>
-                <CardHeader>
-                  <CardTitle>Partials</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{totalHits}</p>
-                </CardContent>
-              </ShadcnCard>
-            )}
-            {totalEsigns !== null && (
-              <ShadcnCard>
-                <CardHeader>
-                  <CardTitle>Esigns</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{totalEsigns}</p>
-                </CardContent>
-              </ShadcnCard>
-            )} */}
-            {/* <Chart/> */}
-
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             {startDate && endDate && (
               <UndeliveredSignsFinder
                 startDate={startDate}
@@ -480,64 +534,77 @@ export default function Home() {
             {startDate && endDate && (
               <DuplicateEmailFinder startDate={startDate} endDate={endDate} />
             )}
-            {tableData.length > 0 ? (
-              <ShadcnCard className="col-span-2">
-                <CardHeader>
-                  <CardTitle>Leads</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Email</TableHead>
-                        {/* Add more TableHead components for additional columns */}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {currentPageData.map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{row.timestamp}</TableCell>
-                          <TableCell>{row.email}</TableCell>
-                          {/* Add more TableCell components for additional columns */}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <div className="flex justify-between items-center mt-4">
-                    <Button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(prev - 1, 1))
-                      }
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <span>
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                      }
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </CardContent>
-              </ShadcnCard>
-            ) : (
-              <Card className="mt-4">
-                <CardContent>No data available</CardContent>
-              </Card>
+            {startDate && endDate && (
+              <AcceptedLeadsTable startDate={startDate} endDate={endDate} />
             )}
           </div>
         </TabsContent>
-        <TabsContent value="password">
-          <Search />
+        <TabsContent value="search">
+          <Search initialEmail={searchParams.get('email')} />
+        </TabsContent>
+        <TabsContent value="leads">
+          {tableData.length > 0 ? (
+            <ShadcnCard>
+              <CardHeader>
+                <CardTitle>Leads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Email</TableHead>
+                      {/* Add more TableHead components for additional columns */}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentPageData.map((row, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{row.timestamp}</TableCell>
+                        <TableCell>{row.email}</TableCell>
+                        {/* Add more TableCell components for additional columns */}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="flex justify-between items-center mt-4">
+                  <Button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(prev - 1, 1))
+                    }
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </CardContent>
+            </ShadcnCard>
+          ) : (
+            <Card>
+              <CardContent>No data available</CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

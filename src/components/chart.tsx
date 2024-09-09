@@ -38,7 +38,12 @@ const chartConfig: ChartConfig = {
     label: "Duplicate",
     color: "#ef4444",
   },
+  accepted: {
+    label: "Accepted",
+    color: "#22c55e", // You can choose a different color
+  },
 };
+
 export function Chart({
   chartData,
   total,
@@ -49,6 +54,7 @@ export function Chart({
     mobile: number;
     delivery: number;
     duplicate: number;
+    accepted: number;
   };
 }) {
   const [activeChart, setActiveChart] =
@@ -64,7 +70,7 @@ export function Chart({
           </CardDescription>
         </div>
         <div className="flex">
-          {["mobile", "desktop", "delivery", "duplicate"].map((key) => {
+          {["mobile", "desktop", "delivery", "duplicate", "accepted"].map((key) => {
             const chart = key as keyof typeof chartConfig;
             return (
               <div
@@ -88,19 +94,7 @@ export function Chart({
           className="aspect-auto h-[250px] w-full"
         >
           <AreaChart data={chartData}>
-            <defs>
-            <linearGradient id="fillDuplicate" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-duplicate)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-duplicate)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
+            <defs>              
               <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
@@ -137,6 +131,30 @@ export function Chart({
                   stopOpacity={0.1}
                 />
               </linearGradient>
+              <linearGradient id="fillDuplicate" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-duplicate)"
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-duplicate)"
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
+              <linearGradient id="fillAccepted" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-accepted)"
+                  stopOpacity={0.8}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-accepted)"
+                  stopOpacity={0.1}
+                />
+              </linearGradient>
             </defs>
             <CartesianGrid vertical={false} />
             <XAxis
@@ -162,7 +180,14 @@ export function Chart({
               fill="url(#fillDuplicate)"
               stroke="var(--color-duplicate)"
               stackId="a"
-            />                        
+            />
+            <Area
+              dataKey="accepted"
+              type="natural"
+              fill="url(#fillAccepted)"
+              stroke="var(--color-accepted)"
+              stackId="a"
+            />
             <Area
               dataKey="delivery"
               type="natural"

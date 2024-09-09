@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 import axios from "axios";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -9,6 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Search as SearchIcon } from "lucide-react"; // Import the search icon
+import Link from "next/link"; // Import Link for navigation
 
 interface DuplicateEmail {
   email: string;
@@ -26,7 +28,7 @@ export default function DuplicateEmailFinder({ startDate, endDate }: { startDate
   const [totalCount, setTotalCount] = React.useState<number>(0);
   const [totalDuplicates, setTotalDuplicates] = React.useState<number>(0);
 
-  const findDuplicates = async () => {
+  const findDuplicates = useCallback(async () => {
     if (!startDate || !endDate) {
       setError("Start and end dates are required");
       return;
@@ -69,9 +71,10 @@ export default function DuplicateEmailFinder({ startDate, endDate }: { startDate
         },
       });
       const duplicateEmails = response.data.aggregations.duplicates.buckets.map(
-        (bucket: { key: string; doc_count: number; docs: { hits: { hits: { _source: { email_address: string; esign_timestamp: string } }[] } } }) => ({
+        (bucket: { key: string; doc_count: number; docs: { hits: { hits: { _source: { email_address: string; esign_timestamp: string } } } } }) => ({
           email: bucket.key,
           count: bucket.doc_count,
+          // @ts-ignore
           documents: bucket.docs.hits.hits.map((hit: { _source: { email_address: string; esign_timestamp: string } }) => ({
             timestamp: new Date(hit._source.esign_timestamp).toLocaleString(),
             email: hit._source.email_address,
@@ -89,20 +92,20 @@ export default function DuplicateEmailFinder({ startDate, endDate }: { startDate
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
   useEffect(() => {
     if (startDate && endDate) {
       findDuplicates();
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, findDuplicates]);
 
   return (
-    <Card className="w-full max-w-4xl mx-auto overflow-y-scroll max-h-[600px]">
+    <Card className="w-full h-[600px] flex flex-col">
       <CardHeader>
         <CardTitle>Duplicate Emails (Unique: {totalCount}, Total: {totalDuplicates})</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow overflow-auto">
         {isLoading && <p className="text-center">Loading...</p>}
         {error && <p className="text-red-500 mb-4">{error}</p>}
         {duplicates.length > 0 && (
@@ -117,7 +120,12 @@ export default function DuplicateEmailFinder({ startDate, endDate }: { startDate
             <TableBody>
               {duplicates.map((dup, index) => (
                 <TableRow key={index}>
-                  <TableCell>{dup.email}</TableCell>
+                  <TableCell>
+                    {dup.email}
+                    <Link href={`/?tab=search&email=${dup.email}`} passHref>
+                      <SearchIcon className="inline-block ml-1 w-4 h-4 cursor-pointer" />
+                    </Link>
+                  </TableCell>
                   <TableCell>{dup.count}</TableCell>
                   <TableCell>
                     {dup.documents.map((doc, i) => (
