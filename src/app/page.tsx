@@ -228,15 +228,15 @@ export default function Home() {
       );
 
       // Combine data based on date
-      const combinedData = partials_data.map((mobileItem) => {
+      const combinedData = partials_data.map((mobileItem: { date: any; mobile: any; }) => {
         const desktopItem = esigns_data.find(
-          (desktopItem) => desktopItem.date === mobileItem.date
+          (desktopItem: { date: any; }) => desktopItem.date === mobileItem.date
         );
         const deliveryItem = delivery_data.find(
-          (deliveryItem) => deliveryItem.date === mobileItem.date
+          (deliveryItem: { date: any; }) => deliveryItem.date === mobileItem.date
         );
         const duplicateItem = duplicate_data.find(
-          (duplicateItem) => duplicateItem.date === mobileItem.date
+          (duplicateItem: { date: any; }) => duplicateItem.date === mobileItem.date
         );
 
         return {
@@ -276,7 +276,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const totalPages = Math.max(1, Math.ceil(totalHits / itemsPerPage));
+  const totalPages = totalHits ? Math.max(1, Math.ceil(totalHits / itemsPerPage)) : 1;
   const currentPageData = tableData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -287,9 +287,9 @@ export default function Home() {
     fetchData();
   };
 
-  const processAggregationPartial = (aggregations) => {
+  const processAggregationPartial = (aggregations: { sales_over_time: { buckets: any[]; }; }) => {
     const formattedData = aggregations.sales_over_time.buckets.map(
-      (bucket) => ({
+      (bucket: { key_as_string: any; doc_count: any; }) => ({
         date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
         mobile: bucket.doc_count, // This will be the count of documents for that month
       })
@@ -298,9 +298,9 @@ export default function Home() {
     return formattedData;
   };
 
-  const processAggregationEsign = (aggregations) => {
+  const processAggregationEsign = (aggregations: { sales_over_time: { buckets: any[]; }; }) => {
     const formattedData = aggregations.sales_over_time.buckets.map(
-      (bucket) => ({
+      (bucket: { key_as_string: any; doc_count: any; }) => ({
         date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
         desktop: bucket.doc_count, // This will be the count of documents for that month
       })
@@ -309,9 +309,9 @@ export default function Home() {
     return formattedData;
   };
 
-  const processAggregationDelivery = (aggregations) => {
+  const processAggregationDelivery = (aggregations: { sales_over_time: { buckets: any[]; }; }) => {
     const formattedData = aggregations.sales_over_time.buckets.map(
-      (bucket) => ({
+      (bucket: { key_as_string: any; doc_count: any; }) => ({
         date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
         delivery: bucket.doc_count, // This will be the count of documents for that month
       })
@@ -320,9 +320,9 @@ export default function Home() {
     return formattedData;
   };
 
-  const processAggregationDuplicate = (aggregations) => {
+  const processAggregationDuplicate = (aggregations: { sales_over_time: { buckets: any[]; }; }) => {
     const formattedData = aggregations.sales_over_time.buckets.map(
-      (bucket) => ({
+      (bucket: { key_as_string: any; doc_count: any; }) => ({
         date: bucket.key_as_string, // This will be the month in "MMMM" format (e.g., "January")
         duplicate: bucket.doc_count, // This will be the count of documents for that month
       })
@@ -419,7 +419,7 @@ export default function Home() {
               <DatePicker
                 todayButton="Today"
                 selected={startDate}
-                onChange={(date: Date) => setStartDate(date)}
+                onChange={(date: Date | null) => setStartDate(date)}
                 showTimeSelect
                 timeFormat="HH:mm"
                 timeIntervals={15}
@@ -430,7 +430,7 @@ export default function Home() {
               />
               <DatePicker
                 selected={endDate}
-                onChange={(date: Date) => setEndDate(date)}
+                onChange={(date: Date | null) => setEndDate(date)}
                 showTimeSelect
                 timeFormat="HH:mm"
                 timeIntervals={15}
@@ -439,7 +439,7 @@ export default function Home() {
                 placeholderText="Select end date and time"
                 className="p-2 border rounded"
               />
-              <Button type="submit" loading={isLoading}>
+              <Button type="submit" disabled={isLoading}>
                 Submit
               </Button>
             </div>
@@ -475,7 +475,6 @@ export default function Home() {
               <UndeliveredSignsFinder
                 startDate={startDate}
                 endDate={endDate}
-                className="col-span-1"
               />
             )}
             {startDate && endDate && (

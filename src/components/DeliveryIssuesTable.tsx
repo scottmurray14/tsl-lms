@@ -11,10 +11,22 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 
-export default function UndeliveredSignsFinder({ startDate, endDate }) {
-  const [undeliveredSigns, setUndeliveredSigns] = React.useState([]);
+interface UndeliveredSignsFinderProps {
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
+interface UndeliveredSign {
+  timestamp: string;
+  product: string;
+  email: string;
+  esignTimestamp: string;
+}
+
+export default function UndeliveredSignsFinder({ startDate, endDate }: UndeliveredSignsFinderProps) {
+  const [undeliveredSigns, setUndeliveredSigns] = React.useState<UndeliveredSign[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<string | null>(null);
   const [totalCount, setTotalCount] = React.useState(0);
 
   const findUndeliveredSigns = async () => {
@@ -35,8 +47,8 @@ export default function UndeliveredSignsFinder({ startDate, endDate }) {
               {
                 range: {
                   esign_timestamp: {
-                    gte: startDate,
-                    lte: endDate,
+                    gte: startDate.getTime(),
+                    lte: endDate.getTime(),
                   },
                 },
               },
@@ -56,7 +68,7 @@ export default function UndeliveredSignsFinder({ startDate, endDate }) {
         _source: ["email_address", "esign_timestamp", "delivered_timestamp", "timestamp", "product"],
       });
 
-      const undeliveredSignsData = response.data.hits.hits.map((hit) => ({
+      const undeliveredSignsData = response.data.hits.hits.map((hit: any) => ({
         timestamp: hit._source.timestamp,
         product: hit._source.product,
         email: hit._source.email_address,
@@ -65,7 +77,7 @@ export default function UndeliveredSignsFinder({ startDate, endDate }) {
 
       setUndeliveredSigns(undeliveredSignsData);
       setTotalCount(response.data.hits.total.value);
-    } catch (err) {
+    } catch (err: any) {
       setError("Failed to fetch undelivered signs: " + err.message);
     } finally {
       setIsLoading(false);

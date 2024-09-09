@@ -10,12 +10,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export default function DuplicateEmailFinder({ startDate, endDate }) {
-  const [duplicates, setDuplicates] = React.useState([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState(null);
-  const [totalCount, setTotalCount] = React.useState(0);
-  const [totalDuplicates, setTotalDuplicates] = React.useState(0);
+interface DuplicateEmail {
+  email: string;
+  count: number;
+  documents: {
+    timestamp: string;
+    email: string;
+  }[];
+}
+
+export default function DuplicateEmailFinder({ startDate, endDate }: { startDate: Date | null; endDate: Date | null }) {
+  const [duplicates, setDuplicates] = React.useState<DuplicateEmail[]>([]);
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [totalCount, setTotalCount] = React.useState<number>(0);
+  const [totalDuplicates, setTotalDuplicates] = React.useState<number>(0);
 
   const findDuplicates = async () => {
     if (!startDate || !endDate) {
@@ -60,10 +69,10 @@ export default function DuplicateEmailFinder({ startDate, endDate }) {
         },
       });
       const duplicateEmails = response.data.aggregations.duplicates.buckets.map(
-        (bucket) => ({
+        (bucket: { key: string; doc_count: number; docs: { hits: { hits: { _source: { email_address: string; esign_timestamp: string } }[] } } }) => ({
           email: bucket.key,
           count: bucket.doc_count,
-          documents: bucket.docs.hits.hits.map((hit) => ({
+          documents: bucket.docs.hits.hits.map((hit: { _source: { email_address: string; esign_timestamp: string } }) => ({
             timestamp: new Date(hit._source.esign_timestamp).toLocaleString(),
             email: hit._source.email_address,
           })),
@@ -73,9 +82,9 @@ export default function DuplicateEmailFinder({ startDate, endDate }) {
       setTotalCount(response.data.aggregations.duplicates.buckets.length);
       
       // Calculate total duplicates
-      const total = duplicateEmails.reduce((sum, dup) => sum + dup.count, 0);
+      const total = duplicateEmails.reduce((sum: number, dup: DuplicateEmail) => sum + dup.count, 0);
       setTotalDuplicates(total);
-    } catch (err) {
+    } catch (err: any) {
       setError("Failed to fetch duplicate emails: " + err.message);
     } finally {
       setIsLoading(false);
