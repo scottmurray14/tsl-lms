@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import axios from "axios";
 import { BarChart, Card, Title } from "@tremor/react";
 import {
@@ -39,6 +39,7 @@ function HomeContent() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("account");
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -46,6 +47,14 @@ function HomeContent() {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'account') {
+      // Clear URL parameters when switching to the Overview tab
+      router.push('/', { scroll: false });
+    }
+  };
 
   const fetchData = async () => {
     if (!startDate || !endDate) {
@@ -451,7 +460,7 @@ function HomeContent() {
 
   return (
     <main className="p-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="account">Overview</TabsTrigger>
           <TabsTrigger value="search">Search</TabsTrigger>

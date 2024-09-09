@@ -17,6 +17,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Area, AreaChart} from "recharts"
+import { Skeleton } from "@/components/ui/skeleton";
 
 const chartConfig: ChartConfig = {
   views: {
@@ -44,9 +45,34 @@ const chartConfig: ChartConfig = {
   },
 };
 
+function ChartSkeleton() {
+  return (
+    <Card className="col-span-2">
+      <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
+        <div className="flex flex-1 flex-col justify-center gap-1 px-6 py-5 sm:py-6">
+          <Skeleton className="h-6 w-[200px]" />
+          <Skeleton className="h-4 w-[300px]" />
+        </div>
+        <div className="flex">
+          {[...Array(5)].map((_, index) => (
+            <div key={index} className="flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 sm:border-l sm:border-t-0 sm:px-8 sm:py-6">
+              <Skeleton className="h-4 w-[60px]" />
+              <Skeleton className="h-6 w-[80px]" />
+            </div>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="px-2 sm:p-6">
+        <Skeleton className="h-[250px] w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function Chart({
   chartData,
   total,
+  isLoading = false,
 }: {
   chartData: any;
   total: {
@@ -56,18 +82,20 @@ export function Chart({
     duplicate: number;
     accepted: number;
   };
+  isLoading?: boolean;
 }) {
   const [activeChart, setActiveChart] =
     React.useState<keyof typeof chartConfig>("desktop");
+
+  if (isLoading) {
+    return <ChartSkeleton />;
+  }
 
   return (
     <Card className="col-span-2">
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
         <div className="flex flex-1 flex-col justify-center gap-1 px-6 py-5 sm:py-6">
-          <CardTitle>Bar Chart - Interactive</CardTitle>
-          <CardDescription>
-            Showing total visitors for the last 3 months
-          </CardDescription>
+          <CardTitle>Overview</CardTitle>
         </div>
         <div className="flex">
           {["mobile", "desktop", "delivery", "duplicate", "accepted"].map((key) => {

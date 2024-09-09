@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from "react";
 import axios from "axios";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -103,7 +103,8 @@ export default function DuplicateEmailFinder({ startDate, endDate }: { startDate
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader>
-        <CardTitle>Duplicate Emails (Unique: {totalCount}, Total: {totalDuplicates})</CardTitle>
+        <CardTitle>Duplicate Leads</CardTitle>
+        <CardDescription>{totalDuplicates} Duplicates, {totalCount} Unique</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-auto">
         {isLoading && <p className="text-center">Loading...</p>}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -78,7 +78,8 @@ export default function AcceptedLeadsTable({ startDate, endDate }: { startDate: 
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader>
-        <CardTitle>Accepted Leads (Total: {totalCount})</CardTitle>
+        <CardTitle>Accepted Leads</CardTitle>
+        <CardDescription>{totalCount} Leads</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-auto">
         {isLoading && <p className="text-center">Loading...</p>}

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import axios from "axios";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -120,7 +120,8 @@ export default function UndeliveredSignsFinder({ startDate, endDate }: Undeliver
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader>
-        <CardTitle>Undelivered Leads ({totalCount})</CardTitle>
+        <CardTitle>Undelivered Leads</CardTitle>
+        <CardDescription>{totalCount} Leads</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-auto">
         {isLoading && <p className="text-center">Loading...</p>}
